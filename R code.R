@@ -1,8 +1,11 @@
 # 1.	Library----
-my_packages <- c("climatol", "data.table", "dplyr", "ggplot2", "ggpp", 
-                 "ggpubr", "LeafArea", "lubridate", "purrr", "raster",
-                 "readxl", "rio", "tidyr", "vegan", "wql", "zoo")
-lapply(my_packages, require, character.only = TRUE) 
+library(tidyr)
+library(rio)
+library(permute)
+library(ggplot2)
+library(ggpubr)
+library(vegan)
+library(ggpp)
 # 2. Customized function----
 # 2.2. Analysis----
 # 2.2.1. Restricted-permutation-based Pearson's correlation test----
@@ -186,7 +189,7 @@ permute_test <-
            hierar = gl(n = 9, k = 3),
            scale = TRUE,
            set_seed = 1211){
-    library(vegan)
+    set.seed(set_seed)
     # f.1. ensure there is no empty column----
     if(prod(!is.na(env_vec)) != 1){
       warning("There is NA in the environmental variable, but the analysis will keep going.")
@@ -272,7 +275,7 @@ permute_test <-
                             data = CWM_env_df))[1, 5],
                    3)
     # f.4. p_row ----
-    set.seed(set_seed)
+    # set.seed(set_seed)
     p_row <- slr_HT_fval(formula1 = CWM ~ env, 
                          data1 = CWM_env_df,
                          n_perm = n_perm,
@@ -286,7 +289,7 @@ permute_test <-
       F_ori <- summary(lm(CWM ~ env, 
                           data = CWM_env_df))$fstatistic[1]
       perm_F <- 1
-      set.seed(set_seed)
+      # set.seed(set_seed)
       for(i in 1:n_perm){
         shuff_trait_df <- 
           sweep(sweep(trait_df %>%
@@ -378,7 +381,6 @@ CWM_generator <-
   function(trait_df,
            weight_df,
            type = NULL){
-    library(vegan)
     # f.0. ensure there is no empty column----
     if(length(which(colSums(is.na(trait_df)) == nrow(trait_df))) != 0){
       warning("Delete the column with all NA in trait_df")
@@ -550,12 +552,14 @@ trait_cube <-
        WOOD_DEN = WOOD_DEN)
 }
 # 4.	Species composition table ----
+{
 raw_composition <- 
   rio::import("https://github.com/r09b44030/trait-fog-relationship/raw/main/Species%20composition.xlsx", 
               which = "Species_composition")
 plant_type <- 
   rio::import("https://github.com/r09b44030/trait-fog-relationship/raw/main/Species%20composition.xlsx", 
               which = "Plant_type")
+}
 # 4.1. produce IVI table (for leaf)----
 weight_IVI_leaf <- 
   raw_composition %>%
@@ -669,7 +673,10 @@ plant_dominance_df <-
 select_ENV <- 
   rio::import("https://github.com/r09b44030/trait-fog-relationship/raw/main/Environmental%20variable.xlsx", 
               which = "Environmental_variables") %>%
-  `rownames<-`(.$plot)
+  `rownames<-`(.$plot) %>%
+  dplyr::select(-plot, -x, -y, -survey_date)
+# the soil phosphorus in F04A and F09A is much more higher than other plots, we decided to remove them from the analysis.
+select_ENV$log_P[which(rownames(select_ENV) %in% c("F04A", "F09A"))] <- NA
 
 select_ENV[, 2:ncol(select_ENV)] <-
   select_ENV[, 2:ncol(select_ENV)] %>%
@@ -959,7 +966,16 @@ for(i in colnames(plant_dominance_df)){
 } # i loop
 
 # 6.3.2. Simple linear regression----
-# fixed_trait_CWM should be generated in 7.2.
+spe_trait_CWM <- 
+  CWM_generator_table(type = "spe") %>%
+  `rownames<-`(rownames(trait_cube[[1]]))
+fixed_trait_CWM <- 
+  CWM_generator_table(type = "fixed") %>%
+  `rownames<-`(rownames(trait_cube[[1]]))
+intra_trait_CWM <- 
+  CWM_generator_table(type = "intra") %>%
+  `rownames<-`(rownames(trait_cube[[1]]))
+
 df_SLA_D <- 
   data.frame(SLA = fixed_trait_CWM$log_SLA,
              D_broad = plant_dominance_df$D_IVI_broad)
@@ -1075,16 +1091,6 @@ colnames(select_trait_env) <- c("trait", "env",
                                 "p", "p_ori",
                                 "r2", "scale")
 # Figure 4
-spe_trait_CWM <- 
-  CWM_generator_table(type = "spe") %>%
-  `rownames<-`(rownames(trait_cube[[1]]))
-fixed_trait_CWM <- 
-  CWM_generator_table(type = "fixed") %>%
-  `rownames<-`(rownames(trait_cube[[1]]))
-intra_trait_CWM <- 
-  CWM_generator_table(type = "intra") %>%
-  `rownames<-`(rownames(trait_cube[[1]]))
-
 GG_CWM_select_ENV <- list()
 m <- 1
 for(ev in unique(select_trait_env$env)){
@@ -1116,23 +1122,23 @@ for(ev in unique(select_trait_env$env)){
                data = df_gg_CWM_fog) + 
         geom_point(size = 4) +
         # geom_text(label = target_plot_vector) + 
-        ggpp::geom_text_npc(aes(npcx = "left", npcy = "bottom"),
-                            size = 5,
-                            label = 
-                              paste0("R2 = ",
-                                     select_trait_env %>%
-                                       filter(type == tp,
-                                              trait == tr,
-                                              env == ev) %>%
-                                       dplyr::select(r2) %>%
-                                       as.numeric(),
-                                     "\n p = ",
-                                     select_trait_env %>%
-                                       filter(type == tp,
-                                              trait == tr,
-                                              env == ev) %>%
-                                       dplyr::select(p) %>%
-                                       as.numeric())) +
+        # ggpp::geom_text_npc(aes(npcx = "left", npcy = "bottom"),
+        #                     size = 5,
+        #                     label = 
+        #                       paste0("R2 = ",
+        #                              select_trait_env %>%
+        #                                filter(type == tp,
+        #                                       trait == tr,
+        #                                       env == ev) %>%
+        #                                dplyr::select(r2) %>%
+        #                                as.numeric(),
+        #                              "\n p = ",
+        #                              select_trait_env %>%
+        #                                filter(type == tp,
+        #                                       trait == tr,
+        #                                       env == ev) %>%
+        #                                dplyr::select(p) %>%
+        #                                as.numeric())) +
         geom_smooth(method = "lm",
                     se = ifelse(sig_p <= 0.1,
                                 TRUE,
@@ -1171,9 +1177,15 @@ for(ev in unique(select_trait_env$env)){
 
 # Figure 4
 ggarrange(plotlist = 
-            GG_CWM_select_ENV[c(4, 5, 25, 26,
-                                11, 12, 32, 33,
-                                18, 19, 39, 40)],
+            GG_CWM_select_ENV[c(53, 74, 95, 116, 
+                                137, 158, 179, 200, 
+                                221, 242, 263, 284)],
+          ncol = 4, nrow = 3)
+
+ggarrange(plotlist = 
+            GG_CWM_select_ENV[c(53, 74, 95, 116, 
+                                137, 158, 179, 200, 
+                                221, 242, 263, 284)],
           ncol = 4, nrow = 3)
 
 # Figure S1
