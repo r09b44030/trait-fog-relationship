@@ -1,4 +1,5 @@
 # 1.	Library----
+library(dplyr)
 library(tidyr)
 library(rio)
 library(permute)
@@ -126,14 +127,14 @@ lmp_HT <- function(x1, x2, y,
   r2_x1_ori <- 
     sum((resid_yx2 * resid_x1x2) ^ 2) /
     (sum(resid_yx2 ^ 2) * sum(resid_x1x2 ^ 2))
-  r2_x1_p <- 0
+  r2_x1_p <- 1
   # f.2.3. beta2----
   resid_yx1 <- lm(y ~ x1)$residuals
   resid_x2x1 <- lm(x2 ~ x1)$residuals
   r2_x2_ori <- 
     sum((resid_yx1 * resid_x2x1) ^ 2) /
     (sum(resid_yx1 ^ 2) * sum(resid_x2x1 ^ 2))
-  r2_x2_p <- 0
+  r2_x2_p <- 1
   # f.3. shuffle----
   for(i in 1:nrow(shuffle_set)){
     # f.3.1. whole model----
@@ -460,6 +461,98 @@ CWM_generator_table <- function(type = NULL){
   return(trait_CWM)
 }
 
+# 2.6. gg_align_plot----
+gg_align_plot <- function(gg_plotlist = NULL,
+                          layout){
+  GG_list_grob <- list()
+  grob_widths <- list()
+  grob_text <- ""
+  grob_width_text <- ""
+  for(i in 1:length(gg_plotlist)){
+    gg_label <- 
+      ggdraw(gg_plotlist[[i]]) +
+      draw_text(paste0("(", letters[i], ")"), x = 0.10, y = 0.95, hjust = 1, vjust = 1, size = 24, fontface = "bold")
+    GG_list_grob[[i]] <- ggplotGrob(gg_label)
+    grob_widths[[i]] <- GG_list_grob[[i]]$widths
+    grob_text <- paste0(grob_text, "GG_list_grob[[", i, "]], ")
+    grob_width_text <- paste0(grob_width_text, "grob_widths[[", i, "]], ")
+  } # for loop
+  
+  maxWidth <- eval(parse(text = paste0("grid::unit.pmax(",
+                                       substr(grob_width_text, 1, nchar(grob_width_text) - 2),
+                                       ")")))
+  
+  for(i in 1:length(gg_plotlist)){
+    GG_list_grob[[i]]$widths <- maxWidth
+  } # for loop
+  
+  final_plot <- 
+    eval(parse(text = paste0("grid.arrange(", grob_text, "layout_matrix = layout)")))
+  return(final_plot)
+} # function
+
+# 2.7. Abbreviation generator----
+# 2.7.1. Environmental variables----
+env_abbr <- function(x){
+  abbr <- 
+    switch(x,
+           "freq_jan" = "expression(FF[Jan])",
+           "freq_jul" = "expression(FF[Jul])",
+           "elevation" = "expression(Elevation)",
+           "temp_jan" = "expression(T[Jan])",
+           "temp_jul" = "expression(T[Jul])",
+           "RH_jan" = "expression(RH[Jan])",
+           "RH_jul" = "expression(RH[Jul])",
+           "percip_jan" = "expression(PP[Jan])",
+           "percip_jul" = "expression(PP[Jul])",
+           "pH" = "expression(pH)",
+           "N" = "expression(N)",
+           "log_P" = "expression(log[10](P))",
+           "log_K" = "expression(log[10](K))",
+           "freezing" = "expression(Subfreezing)")
+  return(abbr)
+}
+
+# 2.7.2. trait variables----
+trait_abbr <- function(trait, type){
+  trait_type <- paste0(type, trait)
+  abbr <- 
+    switch(trait_type,
+           "speTHICK" = "expression(CWM[S](Lth))",
+           "speCHL" = "expression(CWM[S](CHL))",
+           "spelog_LA" = "expression(CWM[S](LA[log10]))",
+           "spelog_SLA" = "expression(CWM[S](SLA[log10]))",
+           "speLDMC" = "expression(CWM[S](LDMC))",
+           "speEWT" = "expression(CWM[S](EWT))",
+           "speWOOD_DEN" = "expression(CWM[S](WD))",
+           "fixedTHICK" = "expression(CWM[F](Lth))",
+           "fixedCHL" = "expression(CWM[F](CHL))",
+           "fixedlog_LA" = "expression(CWM[F](LA[log10]))",
+           "fixedlog_SLA" = "expression(CWM[F](SLA[log10]))",
+           "fixedLDMC" = "expression(CWM[F](LDMC))",
+           "fixedEWT" = "expression(CWM[F](EWT))",
+           "fixedWOOD_DEN" = "expression(CWM[F](WD))",
+           "intraTHICK" = "expression(CWM[ITV](Lth))",
+           "intraCHL" = "expression(CWM[ITV](CHL))",
+           "intralog_LA" = "expression(CWM[ITV](LA[log10]))",
+           "intralog_SLA" = "expression(CWM[ITV](SLA[log10]))",
+           "intraLDMC" = "expression(CWM[ITV](LDMC))",
+           "intraEWT" = "expression(CWM[ITV](EWT))",
+           "intraWOOD_DEN" = "expression(CWM[ITV](WD))")
+  return(abbr)
+}
+# 2.7.3. plant type dominance----
+plant_domin_abbr <- function(x){
+  abbr <- 
+    switch(x,
+           "C_BA" = "expression(BA[C])",
+           "D_BA" = "expression(BA[D])",
+           "E_BA" = "expression(BA[E])",
+           "D_IVI_broad" = "expression(IVI[D/D+E])")
+  return(abbr)
+}
+
+
 # 3.	Species trait table ----
 {
 # 3.1. Import trait----
@@ -665,7 +758,7 @@ plant_dominance_df <-
   data.frame(C_BA = rowSums(weight_reBA_woody[, plant_type$latin[which(plant_type$plant_type == "C")]], na.rm = TRUE),
              E_BA = rowSums(weight_reBA_woody[, plant_type$latin[which(plant_type$plant_type == "E")]], na.rm = TRUE),
              D_BA = rowSums(weight_reBA_woody[, plant_type$latin[which(plant_type$plant_type == "D")]], na.rm = TRUE),
-             D_IVI_broad = rowSums(weight_reBA_woody[, plant_type$latin[which(plant_type$plant_type == "D")]], na.rm = TRUE) / rowSums(weight_reBA_woody[, plant_type$latin[which(plant_type$plant_type != "C")]], na.rm = TRUE)
+             D_IVI_broad = rowSums(weight_IVI_woody[, plant_type$latin[which(plant_type$plant_type == "D")]], na.rm = TRUE) / rowSums(weight_IVI_woody[, plant_type$latin[which(plant_type$plant_type != "C")]], na.rm = TRUE)
              )
 
 # 5.	Environmental variables table ----
@@ -676,11 +769,6 @@ select_ENV <-
   `rownames<-`(.$plot) %>%
   dplyr::select(-plot, -x, -y, -survey_date)
 # the soil phosphorus in F04A and F09A is much more higher than other plots, we decided to remove them from the analysis.
-select_ENV$log_P[which(rownames(select_ENV) %in% c("F04A", "F09A"))] <- NA
-
-select_ENV[, 2:ncol(select_ENV)] <-
-  select_ENV[, 2:ncol(select_ENV)] %>%
-  apply(2, function(x)as.numeric(x))
 
 # 5.2. monthly temperature----
 monthly_temp <- 
@@ -697,7 +785,7 @@ monthly_fog <-
   rio::import("https://github.com/r09b44030/trait-fog-relationship/raw/main/Environmental%20variable.xlsx", which = "Monthly_temp_and_fog") %>%
   `rownames<-`(.$plot) %>%
   dplyr::select(-plot) %>%
-  dplyr::select(contains("freq"))
+  dplyr::select(contains("fog"))
 
 monthly_fog[, 1:ncol(monthly_fog)] <-
   monthly_fog[, 1:ncol(monthly_fog)] %>%
@@ -752,11 +840,15 @@ colnames(temp_fog.ele_result_scale) <-
     "elevation_slope", "elevation_p", "model_p", "vif")
 
 # ggplot (Figure 2)
+temp_fog.ele_result_scale$month <-
+  c("Aug", "Sep", "Oct", "Nov", "Dec",
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul")
+
 temp_fog.ele_result_scale <- 
   temp_fog.ele_result_scale %>%
   mutate(month_fac = factor(month,
-                            levels = c("aug", "sep", "oct", "nov", "dec",
-                                       "jan", "beb", "mar", "apr")),
+                            levels = c("Aug", "Sep", "Oct", "Nov", "Dec",
+                                       "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul")),
          fog_slope = as.numeric(fog_slope),
          elevation_slope = as.numeric(elevation_slope),
          fog_p = as.numeric(fog_p),
@@ -765,33 +857,35 @@ temp_fog.ele_result_scale <-
          vif = as.numeric(vif))
 
 gg_fog_ele_coef <- # the code fail to project the month on x label.
-  ggplot(aes(x = 1:9, y = fog_slope),
+  ggplot(aes(x = month_fac, y = fog_slope, group = 1),
          data = temp_fog.ele_result_scale) + 
-  geom_line(aes(x = 1:9, y = fog_slope),
+  geom_line(aes(x = month_fac, y = fog_slope, group = 1),
             color = "dodgerblue") + 
-  geom_line(aes(x = 1:9, y = elevation_slope),
+  geom_line(aes(x = month_fac, y = elevation_slope, group = 1),
             color = "black") +
-  geom_point(aes(x = 1:9, y = fog_slope),
+  geom_point(aes(x = month_fac, y = fog_slope, group = 1),
              color = "dodgerblue",
              pch = 21,
              fill = c("white", "white", "dodgerblue",
                       "white", "dodgerblue", "white",
-                      "dodgerblue", "white", "dodgerblue"),
+                      "dodgerblue", "white", "dodgerblue",
+                      "dodgerblue", "white", "white"),
              cex = 3) + 
-  geom_point(aes(x = 1:9, y = elevation_slope),
+  geom_point(aes(x = month_fac, y = elevation_slope, group = 1),
              color = "black",
              pch = 21,
              fill = c("black", "black", "white",
                       "white", "black", "white",
-                      "white", "black", "black"),
+                      "white", "black", "black",
+                      "black", "black", "black"),
              cex = 3) +
   geom_hline(yintercept = 0,
              lty = 2,
              color = "grey") + 
   xlab("Month") +
   ylab("Coefficients") +
-  theme(axis.title = element_text(size = 24),
-        axis.text = element_text(size = 20),
+  theme(axis.title = element_text(size = 20),
+        axis.text = element_text(size = 14),
         plot.title = element_text(face = "bold",
                                   hjust = 0.5),
         panel.background = 
@@ -799,18 +893,20 @@ gg_fog_ele_coef <- # the code fail to project the month on x label.
                        colour = "black",
                        linewidth = 0.5, 
                        linetype = "solid"),
-        panel.grid.major = 
-          element_line(linewidth = 0.5, 
-                       linetype = 'solid',
-                       colour = "white"), 
-        panel.grid.minor = 
-          element_line(linewidth = 0.25, 
-                       linetype = 'solid',
-                       colour = "white"
-          )
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        plot.margin = unit(c(0.8, 0.8, 0.5, 0.5), "cm")
   ) # theme
 
 gg_fog_ele_coef
+
+ggsave("Figure_4.png",
+       gg_fog_ele_coef,
+       height = 5.78 * 1,
+       width = 6.71 * 1,
+       unit = "in",
+       dpi = 300)
+
 # 6.2. Pairwise correlation for selected variables----
 GG_env_env <- list()
 # Table S2
@@ -820,13 +916,20 @@ select_env_env_result <-
              r = NULL,
              p = NULL,
              p_ori = NULL)
+{ # the soil phosphorus in F04A and F09A is much more higher than other plots, we decided to remove them from the analysis.
+  select_ENV_Pout <- select_ENV
+  select_ENV_Pout$log_P[which(rownames(select_ENV_Pout) %in% c("F04A", "F09A"))] <- NA
+  select_ENV_Pout[, 2:ncol(select_ENV_Pout)] <-
+    select_ENV_Pout[, 2:ncol(select_ENV_Pout)] %>%
+    apply(2, function(x)as.numeric(x))
+  }
 m <- 1
-for(i in colnames(select_ENV)){
-  for(j in colnames(select_ENV)){
+for(i in colnames(select_ENV_Pout)){
+  for(j in colnames(select_ENV_Pout)){
     print(paste(m, ":", j, "~", i))
     cor_env_env <- 
-      cor.test_HT(scale(select_ENV[, j]),
-                  scale(select_ENV[, i]),
+      cor.test_HT(scale(select_ENV_Pout[, j]),
+                  scale(select_ENV_Pout[, i]),
                   n_perm = 999,
                   hierar = gl(n = 9,
                               k = 3),
@@ -843,8 +946,20 @@ for(i in colnames(select_ENV)){
             make.row.names = FALSE)
     
     # Generate ggplot
-    df1 <- data.frame(x = select_ENV[, i],
-                      y = select_ENV[, j])
+    df1 <- data.frame(x = select_ENV_Pout[, i],
+                      y = select_ENV_Pout[, j])
+    
+    ggtitle_string <- 
+      eval(parse(text = paste0("expression(paste(r, \" = \", \"", 
+                               format(cor_env_env$r, nsmall = 3, trim = FALSE), 
+                               "\", \", \", p, \" = \",\"", 
+                               format(cor_env_env$p_shuff, nsmall = 3, trim = FALSE), 
+                               "\"))")))
+    xlab_string <-
+      eval(parse(text = env_abbr(i)))
+    ylab_string <-
+      eval(parse(text = env_abbr(j)))
+    
     gg_env_env <- 
       ggplot(aes(x = x, 
                  y = y),
@@ -854,15 +969,14 @@ for(i in colnames(select_ENV)){
                             se = FALSE,
                             lwd = ifelse(cor_env_env$p_shuff <= 0.10, 1, 0),
                             linetype = ifelse(cor_env_env$p_shuff <= 0.05, 1, 2)) +
-      ggpp::geom_text_npc(
-        aes(npcx = "left",
-            npcy = "top"),
-        size = 5,
-        label = 
-          paste0("r = ", cor_env_env$r, "\n p = ", cor_env_env$p_shuff)) + 
-      xlab(i) +
-      ylab(j) +
-      theme(axis.title = element_text(size = 24),
+      xlab(xlab_string) +
+      ylab(ylab_string) +
+      ggtitle(ggtitle_string) +
+      ylim(c(min(df1$y) - sd(df1$y),
+             max(df1$y) + sd(df1$y))) +
+      theme(plot.title = element_text(size = 20,
+                                      hjust = 1),
+            axis.title = element_text(size = 24),
             axis.text.x = element_text(size = 20),
             axis.text.y = element_text(size = 20),
             panel.background = 
@@ -870,16 +984,32 @@ for(i in colnames(select_ENV)){
                            colour = "black",
                            linewidth = 0.5, 
                            linetype = "solid"),
-            panel.grid.major = 
-              element_line(linewidth = 0.5, 
-                           linetype = 'solid',
-                           colour = "white"), 
-            panel.grid.minor = 
-              element_line(linewidth = 0.25, 
-                           linetype = 'solid',
-                           colour = "white"
-              )
+            panel.grid.major = element_blank(), 
+            panel.grid.minor = element_blank(),
+            plot.margin = unit(c(1, 1, 1, 1), "cm")
       ) # theme
+    if(i == "log_P"){
+      df_Pout <- 
+        data.frame(x = select_ENV[c(10, 25), i],
+                   y = select_ENV[c(10, 25), j])
+      gg_env_env <- 
+        gg_env_env + 
+        geom_point(aes(x = x, y = y),
+                   data = df_Pout,
+                   color = "grey",
+                   size = 3)
+    }
+    if(j == "log_P"){
+      df_Pout <- 
+        data.frame(x = select_ENV[c(10, 25), i],
+                   y = select_ENV[c(10, 25), j])
+      gg_env_env <- 
+        gg_env_env + 
+        geom_point(aes(x = x, y = y),
+                   data = df_Pout,
+                   color = "grey",
+                   size = 3)
+    }
     GG_env_env[[m]] <- gg_env_env
     m <- m + 1
   } # j loop
@@ -887,9 +1017,33 @@ for(i in colnames(select_ENV)){
 # Group found with zero error variance.
 
 # ggplot (Figure 3)
-ggarrange(plotlist = GG_env_env[2:14],
-          ncol = 3, nrow = 5)
-
+gg_align_plot(gg_plotlist = 
+                GG_env_env[c(2, 3, 4,
+                             19, 6, 21,
+                             8, 23, 10,
+                             11, 12, 13,
+                             14)],
+              layout = rbind(c(1, 2, 3),
+                             c(4, 5, 6),
+                             c(7, 8, 9),
+                             c(10, 11, 12),
+                             c(13, NA, NA)))
+ggsave("Figure_3.png",
+       gg_align_plot(gg_plotlist =
+                       GG_env_env[c(2, 3, 4,
+                                    19, 6, 21,
+                                    8, 23, 10,
+                                    11, 12, 13,
+                                    14)],
+                     layout = rbind(c(1, 2, 3),
+                                    c(4, 5, 6),
+                                    c(7, 8, 9),
+                                    c(10, 11, 12),
+                                    c(13, NA, NA))),
+       height = 5.78 * 5,
+       width = 6.71 * 3,
+       unit = "in",
+       dpi = 300)
 # 6.3. Pairwise correlation for environmental variables and plant form dominance----
 # Table S3
 select_plant_env_result <- 
@@ -901,11 +1055,11 @@ select_plant_env_result <-
 GG_env_plant <- list()
 m <- 1
 for(i in colnames(plant_dominance_df)){
-  for(j in colnames(select_ENV)){
+  for(j in colnames(select_ENV_Pout)){
     print(paste(m, ":", i, "~", j))
     cor_env_plant <- 
       cor.test_HT(scale(plant_dominance_df[, i]),
-                  scale(select_ENV[, j]),
+                  scale(select_ENV_Pout[, j]),
                   n_perm = 999,
                   hierar = gl(n = 9,
                               k = 3),
@@ -922,8 +1076,21 @@ for(i in colnames(plant_dominance_df)){
             make.row.names = FALSE)
     
     # Generate ggplot
-    df1 <- data.frame(x = select_ENV[, j],
+    df1 <- data.frame(x = select_ENV_Pout[, j],
                       y = plant_dominance_df[, i])
+    
+    ggtitle_string <- 
+      eval(parse(text = paste0("expression(paste(r, \" = \", \"", 
+                               format(cor_env_plant$r, nsmall = 3, trim = FALSE), 
+                               "\", \", \", p, \" = \",\"", 
+                               format(cor_env_plant$p_shuff, nsmall = 3, trim = FALSE), 
+                               "\"))")))
+  xlab_string <-
+    eval(parse(text = env_abbr(j)))
+  ylab_string <-
+    eval(parse(text = plant_domin_abbr(i)))
+    
+    
     gg_env_plant <- 
       ggplot(aes(x = x, 
                  y = y),
@@ -933,15 +1100,12 @@ for(i in colnames(plant_dominance_df)){
                             se = FALSE,
                             lwd = ifelse(cor_env_plant$p_shuff <= 0.10, 1, 0),
                             linetype = ifelse(cor_env_plant$p_shuff <= 0.05, 1, 2)) +
-      ggpp::geom_text_npc(
-        aes(npcx = "left",
-            npcy = "top"),
-        size = 5,
-        label = 
-          paste0("r = ", cor_env_plant$r, "\n p = ", cor_env_plant$p_shuff)) + 
-      xlab(j) +
-      ylab(i) +
-      theme(axis.title = element_text(size = 24),
+      xlab(xlab_string) +
+      ylab(ylab_string) +
+      ggtitle(ggtitle_string) +
+      theme(plot.title = element_text(size = 20,
+                                      hjust = 1),
+            axis.title = element_text(size = 24),
             axis.text.x = element_text(size = 20),
             axis.text.y = element_text(size = 20),
             panel.background = 
@@ -949,15 +1113,9 @@ for(i in colnames(plant_dominance_df)){
                            colour = "black",
                            linewidth = 0.5, 
                            linetype = "solid"),
-            panel.grid.major = 
-              element_line(linewidth = 0.5, 
-                           linetype = 'solid',
-                           colour = "white"), 
-            panel.grid.minor = 
-              element_line(linewidth = 0.25, 
-                           linetype = 'solid',
-                           colour = "white"
-              )
+            panel.grid.major = element_blank(), 
+            panel.grid.minor = element_blank(),
+            plot.margin = unit(c(1, 1, 1, 1), "cm")
       ) # theme
     
     GG_env_plant[[m]] <- gg_env_plant
@@ -998,18 +1156,16 @@ gg_SLA_D <-
               linetype = ifelse(slr_result_SLA_D$final_p <= 0.05,
                                 1,
                                 2)) + 
-  ggpp::geom_text_npc(
-    aes(npcx = "left",
-        npcy = "top"),
-    size = 5,
-    label = 
-      paste0("R2 = ", 
-             round(slr_result_SLA_D$lm_ori$adj.r.squared, 3), 
-             "\n p = ", 
-             round(slr_result_SLA_D$final_p, 3))) + 
-  xlab("D_board") +
-  ylab("logSLA") +
-  theme(axis.title = element_text(size = 24),
+  xlab(expression(IVI[D/D+E])) +
+  ylab(expression(CWM[f](SLA[log10]))) +
+  ggtitle(eval(parse(text = paste0("expression(paste(R^2, \" = \", \"", 
+                                   format(round(slr_result_SLA_D$lm_ori$adj.r.squared, 3), nsmall = 3, trim = FALSE), 
+                                   "\", \", \", p, \" = \",\"", 
+                                   format(slr_result_SLA_D$final_p, nsmall = 3, trim = FALSE), 
+                                   "\"))")))) + 
+  theme(plot.title = element_text(size = 20,
+                                  hjust = 1),
+        axis.title = element_text(size = 24),
         axis.text.x = element_text(size = 20),
         axis.text.y = element_text(size = 20),
         panel.background = 
@@ -1017,23 +1173,28 @@ gg_SLA_D <-
                        colour = "black",
                        linewidth = 0.5, 
                        linetype = "solid"),
-        panel.grid.major = 
-          element_line(linewidth = 0.5, 
-                       linetype = 'solid',
-                       colour = "white"), 
-        panel.grid.minor = 
-          element_line(linewidth = 0.25, 
-                       linetype = 'solid',
-                       colour = "white"
-          )
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        plot.margin = unit(c(1, 1, 1, 1), "cm")
   ) # theme
 
-# Figure 6
-ggarrange(plotlist = 
-            list(GG_env_plant[[56]],
-                 GG_env_plant[[43]],
-                 gg_SLA_D),
-          ncol = 3, nrow = 1)
+gg_align_plot(gg_plotlist = 
+                list(GG_env_plant[[56]],
+                     GG_env_plant[[43]],
+                     gg_SLA_D),
+              layout = rbind(c(1, 2, 3)))
+# Figure 5
+ggsave("Figure_5.png",
+       gg_align_plot(gg_plotlist =
+                       list(GG_env_plant[[56]],
+                            GG_env_plant[[43]],
+                            gg_SLA_D),
+                     layout = rbind(c(1, 2, 3))),
+       height = 5.78 * 1,
+       width = 6.71 * 3,
+       unit = "in",
+       dpi = 300)
+
 # 7. Relationships between traits and environmental factors----
 # 7.1. Simple linear regression: trait ~ env----
 # Table S1
@@ -1048,7 +1209,7 @@ select_trait_env <-
              scale = NULL)
 m <- 1
 for(i in names(trait_cube)){
-  for(j in names(select_ENV)){
+  for(j in names(select_ENV_Pout)){
     for(k in c("spe", "fixed", "intra")){
       print(paste(i, j, k, m, "/",
                   length(trait_cube) * ncol(select_ENV) * 3
@@ -1060,7 +1221,7 @@ for(i in names(trait_cube)){
         weight_df <- weight_IVI_leaf
       }
       trait_df <- trait_cube[[i]]
-      env_vec <- select_ENV[, j]
+      env_vec <- select_ENV_Pout[, j]
       
       p_max_table <- 
         permute_test(trait_df = trait_df,
@@ -1090,7 +1251,7 @@ colnames(select_trait_env) <- c("trait", "env",
                                 "type", "slope",
                                 "p", "p_ori",
                                 "r2", "scale")
-# Figure 4
+## Figure 6, 7, S1, S2, S3----
 GG_CWM_select_ENV <- list()
 m <- 1
 for(ev in unique(select_trait_env$env)){
@@ -1100,15 +1261,15 @@ for(ev in unique(select_trait_env$env)){
       if(tp == "spe"){
         df_gg_CWM_fog <-
           data.frame(CWM = spe_trait_CWM[, tr],
-                     env = select_ENV[, ev])
+                     env = select_ENV_Pout[, ev])
       } else if(tp == "fixed"){
         df_gg_CWM_fog <-
           data.frame(CWM = fixed_trait_CWM[, tr],
-                     env = select_ENV[, ev])
+                     env = select_ENV_Pout[, ev])
       } else if(tp == "intra"){
         df_gg_CWM_fog <-
           data.frame(CWM = intra_trait_CWM[, tr],
-                     env = select_ENV[, ev])
+                     env = select_ENV_Pout[, ev])
       }
       sig_p <- 
         select_trait_env %>%
@@ -1117,28 +1278,39 @@ for(ev in unique(select_trait_env$env)){
                  env == ev) %>%
         dplyr::select(p) %>%
         as.numeric()
+      R2 <- 
+        select_trait_env %>%
+        filter(type == tp & 
+                 trait == tr &
+                 env == ev) %>%
+        dplyr::select(r2) %>%
+        as.numeric()
+      
+      if(tp == "intra"){
+        ggtitle_string <- 
+          eval(parse(text = paste0("expression(paste(R^2, \" = \", \"", 
+                                   format(R2, nsmall = 3, trim = FALSE), 
+                                   "\", \", \", p, \" = \",\"", 
+                                   format(sig_p, nsmall = 3, trim = FALSE), 
+                                   "\"))")))
+      } else {
+        ggtitle_string <- 
+          eval(parse(text = paste0("expression(paste(R^2, \" = \", \"", 
+                                   format(R2, nsmall = 3, trim = FALSE), 
+                                   "\", \", \", p[max], \" = \",\"", 
+                                   format(sig_p, nsmall = 3, trim = FALSE), 
+                                   "\"))")))
+      }
+      xlab_string <-
+        eval(parse(text = env_abbr(ev)))
+      ylab_string <-
+        eval(parse(text = trait_abbr(trait = tr,
+                                     type = tp)))
+      
       gg_CWM_select_ENV <- 
         ggplot(aes(x = env, y = CWM),
                data = df_gg_CWM_fog) + 
         geom_point(size = 4) +
-        # geom_text(label = target_plot_vector) + 
-        # ggpp::geom_text_npc(aes(npcx = "left", npcy = "bottom"),
-        #                     size = 5,
-        #                     label = 
-        #                       paste0("R2 = ",
-        #                              select_trait_env %>%
-        #                                filter(type == tp,
-        #                                       trait == tr,
-        #                                       env == ev) %>%
-        #                                dplyr::select(r2) %>%
-        #                                as.numeric(),
-        #                              "\n p = ",
-        #                              select_trait_env %>%
-        #                                filter(type == tp,
-        #                                       trait == tr,
-        #                                       env == ev) %>%
-        #                                dplyr::select(p) %>%
-        #                                as.numeric())) +
         geom_smooth(method = "lm",
                     se = ifelse(sig_p <= 0.1,
                                 TRUE,
@@ -1149,51 +1321,127 @@ for(ev in unique(select_trait_env$env)){
                     linetype = ifelse(sig_p <= 0.05,
                                       1,
                                       2)) + 
-        xlab(ev) +
-        ylab(tr) +
-        theme(axis.title = element_text(size = 24),
+        xlab(xlab_string) +
+        ylab(ylab_string) +
+        ggtitle(ggtitle_string) +
+        theme(plot.title = element_text(size = 20,
+                                        hjust = 1),
+              axis.title = element_text(size = 24),
               axis.text.x = element_text(size = 20),
               axis.text.y = element_text(size = 20),
-              plot.title = element_text(face = "bold",
-                                        hjust = 0.5),
               panel.background = 
                 element_rect(fill = "white",
                              colour = "black",
                              linewidth = 0.5, 
                              linetype = "solid"),
-              panel.grid.major = 
-                element_line(linewidth = 0.5, 
-                             linetype = 'solid',
-                             colour = "white"), 
-              panel.grid.minor = 
-                element_line(linewidth = 0.25, 
-                             linetype = 'solid',
-                             colour = "white")) # theme
+              panel.grid.major = element_blank(), 
+              panel.grid.minor = element_blank(),
+              plot.margin = unit(c(1, 1, 1, 1), "cm")) # theme
+      
+      if(ev == "log_P"){
+        if(tp == "spe"){
+          df_gg_CWM_fog_Pout <-
+            data.frame(CWM = spe_trait_CWM[c(10, 25), tr],
+                       env = select_ENV[c(10, 25), ev])
+        } else if(tp == "fixed"){
+          df_gg_CWM_fog_Pout <-
+            data.frame(CWM = fixed_trait_CWM[c(10, 25), tr],
+                       env = select_ENV[c(10, 25), ev])
+        } else if(tp == "intra"){
+          df_gg_CWM_fog_Pout <-
+            data.frame(CWM = intra_trait_CWM[c(10, 25), tr],
+                       env = select_ENV[c(10, 25), ev])
+        }
+        
+        gg_CWM_select_ENV <- 
+          gg_CWM_select_ENV + 
+          geom_point(aes(x = env, y = CWM),
+                     data = df_gg_CWM_fog_Pout,
+                     color = "grey",
+                     size = 4)
+      } # if
       GG_CWM_select_ENV[[m]] <- gg_CWM_select_ENV
       m <- m + 1
     }
   }
 }
 
-# Figure 4
-ggarrange(plotlist = 
-            GG_CWM_select_ENV[c(53, 74, 95, 116, 
-                                137, 158, 179, 200, 
-                                221, 242, 263, 284)],
-          ncol = 4, nrow = 3)
+# Figure
+gg_align_plot(gg_plotlist = 
+                GG_CWM_select_ENV[c(53, 74, 95, 116, 
+                                    137, 158, 179, 200, 
+                                    221, 242, 263, 284)],
+              layout = rbind(c(1, 2, 3, 4),
+                             c(5, 6, 7, 8),
+                             c(9, 10, 11, 12))
+              )
 
-ggarrange(plotlist = 
-            GG_CWM_select_ENV[c(53, 74, 95, 116, 
-                                137, 158, 179, 200, 
-                                221, 242, 263, 284)],
-          ncol = 4, nrow = 3)
+ggsave("Figure_6.png",
+       gg_align_plot(gg_plotlist =
+                       GG_CWM_select_ENV[c(11, 18 ,19)],
+                     layout = rbind(c(1, 2, 3))),
+       height = 5.78 * 1,
+       width = 6.71 * 3,
+       unit = "in",
+       dpi = 300)
 
-# Figure S1
-ggarrange(plotlist = 
-            GG_CWM_select_ENV[c(60, 81, 61, 82,
-                                102, 123, 103, 124,
-                                144, 165, 145, 166,
-                                186, 207, 187, 208,
-                                228, 249, 229, 250,
-                                270, 291, 271, 292)],
-          ncol = 4, nrow = 6)
+ggsave("Figure_7.png",
+       gg_align_plot(gg_plotlist =
+                       GG_CWM_select_ENV[c(284, 249, 291,
+                                           285, 250, 292)],
+                     layout = rbind(c(1, 2, 3),
+                                    c(4, 5, 6))),
+       height = 5.78 * 2,
+       width = 6.71 * 3,
+       unit = "in",
+       dpi = 300)
+
+ggsave("Figure_S1.png",
+       gg_align_plot(gg_plotlist =
+                       GG_CWM_select_ENV[c(4, 5, 25, 26,
+                                           11, 12, 32, 33,
+                                           18, 19, 39, 40)],
+                     layout = rbind(c(1, 2, 3, 4),
+                                    c(5, 6, 7, 8),
+                                    c(9, 10, 11, 12))
+       ),
+       height = 5.78 * 3,
+       width = 6.71 * 4,
+       unit = "in",
+       dpi = 300)
+
+ggsave("Figure_S2.png",
+       gg_align_plot(gg_plotlist =
+                       GG_CWM_select_ENV[c(60, 81, 61, 82,
+                                           102, 123, 103, 124,
+                                           144, 165, 145, 166,
+                                           186, 207, 187, 208,
+                                           228, 249, 229, 250,
+                                           270, 291, 271, 292)],
+                     layout = rbind(c(1, 2, 3, 4),
+                                    c(5, 6, 7, 8),
+                                    c(9, 10, 11, 12),
+                                    c(13, 14, 15, 16),
+                                    c(17, 18, 19, 20),
+                                    c(21, 22, 23, 24))
+       ),
+       height = 5.78 * 6,
+       width = 6.71 * 4,
+       unit = "in",
+       dpi = 300)
+
+ggsave("Figure_S3.png",
+       gg_align_plot(gg_plotlist =
+                       GG_CWM_select_ENV[c(53, 74, 95, 116,
+                                           137, 158, 179, 200,
+                                           221, 242, 263, 284)],
+                     layout = rbind(c(1, 2, 3, 4),
+                                    c(5, 6, 7, 8),
+                                    c(9, 10, 11, 12))
+       ),
+       height = 5.78 * 3,
+       width = 6.71 * 4,
+       unit = "in",
+       dpi = 300)
+
+
